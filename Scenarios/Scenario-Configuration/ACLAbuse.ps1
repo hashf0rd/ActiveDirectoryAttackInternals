@@ -1,3 +1,26 @@
+<#
+Attack Path
+
+The attacker gains initial access to the network and discovers John's account has a weak password.
+
+After the attacker compromises John's account, recon shows that John is part of the Office Admins group.
+
+Mmebers of the "Office Admins" group have WriteProperty over "DevOps Admins", so John is able to add himself to that group.
+
+As a member of "DevOps Admins", John has WriteDACL permissions on the "IT Admins" group.
+
+The attacker, through John's account, modifies the DACL of "IT Admins" to grant John's account GenericWrite permissions.
+
+Using the newly acquired GenericWrite permissions on "IT Admins", the attacker adds John to this group.
+
+The "IT Admins" group has GenericAll permissions on the "AdminSDHolder" object - the template for admin accounts.
+
+Using the GenericAll permissions, the attacker makes John a domain admin.
+
+As a final step, the attacker creates a backdoor account that is invisible to the SOC group.
+
+#>
+
 $domainName = 'aclabuse.lab'
 
 New-ADOrganizationalUnit -Name "EnterpriseUsers" -Path "DC=aclabuse,DC=lab"
@@ -29,29 +52,6 @@ Add-ADGroupMember -Identity 'Domain Admins' -Members 'SOC'
 Add-ADGroupMember -Identity 'SOC' -Members 'jane.doe'
 
 Add-ADGroupMember -Identity 'Office Admins' -Members 'john.dee'
-
-<#
-Attack Path
-
-The attacker gains initial access to the network and discovers John's account has a weak password.
-
-After the attacker compromises John's account, recon shows that John is part of the Office Admins group.
-
-Mmebers of the "Office Admins" group have WriteProperty over "DevOps Admins", so John is able to add himself to that group.
-
-As a member of "DevOps Admins", John has WriteDACL permissions on the "IT Admins" group.
-
-The attacker, through John's account, modifies the DACL of "IT Admins" to grant John's account GenericWrite permissions.
-
-Using the newly acquired GenericWrite permissions on "IT Admins", the attacker adds John to this group.
-
-The "IT Admins" group has GenericAll permissions on the "AdminSDHolder" object - the template for admin accounts.
-
-Using the GenericAll permissions, the attacker makes John a domain admin.
-
-As a final step, the attacker creates a backdoor account that is invisible to the SOC group.
-
-#>
 
 # Office Admins has WriteProperty on DevOps Admins
 $targetDN =  "AD:$(Get-ADGroup -Identity 'DevOps Admins')"

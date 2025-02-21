@@ -1,3 +1,16 @@
+# Set up a temporary SMB share on the host
+$TempShare = "C:\TempShare"
+
+if (Test-Path $TempShare) {
+    # do nothing
+    "$TempShare already exists, continuing..."
+} else {
+    "$TempShare not found, creating..."
+    New-Item -ItemType Directory -Path $TempShare -Force -PassThru
+}
+
+New-SMBShare -name Temp -path C:\tempshare -Temporary
+
 # Global variables
 $labName = 'GPOAbuse'
 $domainName = 'gpoabuse.lab'
@@ -34,6 +47,9 @@ Add-LabDomainDefinition `
     -AdminUser $admin `
     -AdminPassword $adminPass
 
+# RootDC role needs some additional parameters
+$rootDCrole = Get-LabMachineRoleDefinition -Role RootDC @{ SiteName = 'Dunwhich' }
+
 # The lab configuration script is defined here as a post install activity
 $scriptPath = Join-Path $PSScriptRoot '.\Lab-Configuration'
 $labConfigDC = Get-LabInstallationActivity -ScriptFileName 'GPOAbuse-DC01.ps1' -DependencyFolder $scriptPath
@@ -49,7 +65,7 @@ Add-LabMachineDefinition `
     -IpAddress $machineAddressDC `
     -DnsServer1 $machineAddressDC `
     -DomainName $domainName `
-    -Roles RootDC `
+    -Roles $rootDCrole `
     -OperatingSystem $labISO_DC `
     -PostInstallationActivity $labConfigDC
 
