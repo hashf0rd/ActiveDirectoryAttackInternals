@@ -1,26 +1,42 @@
-# Set up a temporary SMB share on the host
-$TempShare = "C:\TempShare"
+# set up a test user
+New-LocalUser `
+    -Name "test01" `
+    -AccountExpires (get-date).AddHours(1) `
+    -Password (ConvertTo-SecureString "testPass01" -AsPlaintext -Force) `
+    -ErrorAction 'silentlycontinue'
 
-if (Test-Path $TempShare) {
-    # do nothing
-    "$TempShare already exists, continuing..."
-} else {
-    "$TempShare not found, creating..."
-    New-Item -ItemType Directory -Path $TempShare -Force -PassThru
-}
+$share = "C:\tempShare"
 
-New-SMBShare -name Temp -path C:\tempshare -Temporary
+# Set up a SMB share on the host
+New-Item `
+    -ItemType Directory `
+    -Path $share `
+    -Force `
+    -ErrorAction 'silentlycontinue'
+    
+Remove-SmbShare `
+    -Name Temp `
+    -Force `
+    -ErrorAction 'silentlycontinue'
+
+New-SMBShare `
+    -Name Temp `
+    -Path $share
+
+Unblock-SmbShareAccess `
+    -Name Temp `
+    -AccountName "test01" `
+    -Force
 
 # Global variables
 $labName = 'GPOAbuse'
-$domainName = 'gpoabuse.lab'
+$domainName = 'gpoabuse.lab' 
 $admin = 'gpoAdmin'
 $adminPass = 'gpoPass01'
 $machineNameDC = 'DC01'
 $machineAddressDC = '192.168.6.10'
 $machineNameWS = 'WS01'
 $machineAddressWS = '192.168.6.88'
-$ou = "OU=EnterpriseUsersAndComputers,DC=gpoabuse,DC=lab"
 
 # Change the labISO_X variables to match the ISOs you have available
 $labISO_DC = 'Windows Server 2019 Standard (Desktop Experience)'
@@ -47,13 +63,10 @@ Add-LabDomainDefinition `
     -AdminUser $admin `
     -AdminPassword $adminPass
 
-# RootDC role needs some additional parameters
-$rootDCrole = Get-LabMachineRoleDefinition -Role RootDC @{ SiteName = 'Dunwhich' }
-
 # The lab configuration script is defined here as a post install activity
-$scriptPath = Join-Path $PSScriptRoot '.\Lab-Configuration'
-$labConfigDC = Get-LabInstallationActivity -ScriptFileName 'GPOAbuse-DC01.ps1' -DependencyFolder $scriptPath
-#$labConfigWS = Get-LabInstallationActivity -ScriptFileName 'GPOAbuse-WS01.ps1' -DependencyFolder $scriptPath
+$scriptPath = Join-Path $PSScriptRoot '.\Scenario-Configuration'
+$labConfigDC = Get-LabInstallationActivity -ScriptFileName 'Config-GPOAbuse-DC01.ps1' -DependencyFolder $scriptPath
+#$labConfigWS = Get-LabInstallationActivity -ScriptFileName 'Config-GPOAbuse-WS01.ps1' -DependencyFolder $scriptPath
 
 # Definition for DC01
 Add-LabMachineDefinition `
@@ -65,7 +78,7 @@ Add-LabMachineDefinition `
     -IpAddress $machineAddressDC `
     -DnsServer1 $machineAddressDC `
     -DomainName $domainName `
-    -Roles $rootDCrole `
+    -Roles RootDC `
     -OperatingSystem $labISO_DC `
     -PostInstallationActivity $labConfigDC
 
@@ -85,7 +98,7 @@ Add-LabMachineDefinition `
 
 # Install lab & report
 Install-Lab 
-Show-LabDeploymentSummary -Detailed 
+Show-LabDeploymentSummary 
 
 # Set up the vEthernet interface on the host to use the newly created DC as its DNS server
 $index = (Get-NetAdapter | Where-Object Name -Match $labName).ifIndex
@@ -93,9 +106,39 @@ Set-DnsClientServerAddress -InterfaceIndex $index -ServerAddresses $machineAddre
 Write-Host "Host vEthernet interface configured..."
 Get-NetIPConfiguration -InterfaceIndex $index
 
-# Move WS01 into the proper OU, there is probably a better way to do this...
-Invoke-LabCommand `
-    -ComputerName $machineNameDC `
-    -ScriptBlock { 
-        Get-ADComputer -Identity $machineNameWS | Move-ADObject -TargetPath $ou 
-    } -Variable (Get-Variable -Name machineNameWS),(Get-Variable  -Name ou)
+Restart-LabVM -ComputerName "DC01" -Wait
+Wait-LabADReady -ComputerName "DC01"
+
+# This needs to be done after the DC has rebooted for some reason
+Invoke-LabCommand -ComputerName "DC01" -ScriptBlock {
+    # Move DC to Dunwhich site
+    $DC = Get-ADDomainController -Discover
+    New-ADReplicationSite -Name "Dunwhich" -Server $DC
+    $site = Get-ADReplicationSite -Filter 'Name -eq "Dunwhich"' 
+    Get-ADDomainController -Filter 'Name -like "DC01*"' | Move-ADDirectoryServer -Site $site -Server $DC
+
+    # Site Policy Admins can write tp/read from the gpLink property of the Dunwhich site
+    $siteDN = "AD:\$((Get-ADReplicationSite -Identity "Dunwhich").DistinguishedName)"
+    $siteACL = Get-ACL -Path $siteDN
+    $groupSID = (Get-ADGroup -Identity 'Site Policy Admins').SID
+
+    # Write
+    $writeACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $groupSID,
+        [System.DirectoryServices.ActiveDirectoryRights]::WriteProperty,
+        [System.Security.AccessControl.AccessControlType]::Allow,
+        [GUID]'f30e3bbe-9ff0-11d1-b603-0000f80367c1' # gpLink
+        )
+    $siteACL.AddAccessRule($writeACE)
+
+    # Read
+    $readACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $groupSID,
+        [System.DirectoryServices.ActiveDirectoryRights]::ReadProperty,
+        [System.Security.AccessControl.AccessControlType]::Allow,
+        [GUID]'f30e3bbe-9ff0-11d1-b603-0000f80367c1' # gpLink
+        )
+    $siteACL.AddAccessRule($readACE)
+    
+    Set-Acl -AclObject $siteACL -Path $siteDN
+}

@@ -30,8 +30,8 @@ Add-LabDomainDefinition `
     -AdminPassword $adminPass
 
 # The lab configuration script is defined here as a post install activity
-$scriptPath = Join-Path $PSScriptRoot '.\Lab-Configuration'
-$labConfig = Get-LabInstallationActivity -ScriptFileName 'ACLAbuse.ps1' -DependencyFolder $scriptPath
+$scriptPath = Join-Path $PSScriptRoot '.\Scenario-Configuration'
+$labConfig = Get-LabInstallationActivity -ScriptFileName 'Config-ACLAbuse.ps1' -DependencyFolder $scriptPath
 
 # Definition for DC01
 Add-LabMachineDefinition `
