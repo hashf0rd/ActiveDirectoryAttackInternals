@@ -1,9 +1,12 @@
 Remove-LocalUser `
-    -Name "test01" `
+    -Name "gpoAdmin" `
+    
+Remove-Item `
+    -Path "C:\tmpPrinter" `
     -Force
 
 Remove-SmbShare `
-    -Name Temp `
+    -Name TmpPrinter `
     -Force `
     -ErrorAction 'silentlycontinue'
 
