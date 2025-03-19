@@ -1,7 +1,7 @@
 ## Overview
 This repo contains the notebooks and associated scripts used to generate the AD attack internals series on my blog: 
 
-The series is an attempt to explore and demonstrate how modern attacks against Active Directory work from the ground up, without using existing tooling. The notebooks use a combination of PowerShell and Python, specifically the Impacket library. 
+The series is an attempt to explore and demonstrate how modern attacks against Active Directory work from the ground up, without using existing tooling. The notebooks use a combination of PowerShell and Python.
 
 ## Disclaimer
 The code contained in these notebooks is __POC only__: no consideration has been given for performance, scalability, compatibility, or more importantly, operational security.
@@ -13,16 +13,7 @@ These notebooks were developed in the following environment:
 - Windows Server ISOs (any version really, but when writing these notebooks __Windows Server 2019 Standard (Desktop Experience)__ specifically was used)
 - [.Net interactive kernel](https://github.com/dotnet/interactive)
 - VsCode [Polyglot Notebook extension](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.dotnet-interactive-vscode)
-
-### Installing Impacket on Windows
-Some notebooks use the Impacket library. To get this working on Windows, do the following from an admin terminal:
-- `git clone https://github.com/SecureAuthCorp/impacket.git $home\impacket`
-- `Add-MpPreference -ExclusionPath $home\impacket`
-- `Add-MpPreference -ExclusionPath $home\AppData\Roaming\Python\Python312\Scripts`
-- `pip3 install -r $home/impacket/requirements.txt`
-- `cd $home\impacket && pip3 install .`
-- `python3 ./setup.py install`
-
+- Python 3.x
 
 ### Virtualisation Options
 If you wish to use a different hypervisor to Hyper-v, the lab configuration scripts for the most part work standalone - simply build your virtual environment 
