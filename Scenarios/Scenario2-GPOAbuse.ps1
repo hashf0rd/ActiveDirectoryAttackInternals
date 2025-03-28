@@ -5,7 +5,7 @@ $admin = 'gpoAdmin'
 $adminPass = 'gpoPass01'
 $domainControllerName = 'DC01'
 $domainControllerAddress = '192.168.6.10'
-$workstationName = 'WS01'
+$workstationName = 'AdminWS01'
 $workstationAddress = '192.168.6.88'
 
 # Change the labISO_X variables to match the ISOs you have available
@@ -72,7 +72,7 @@ Show-LabDeploymentSummary
 
 # Set up the vEthernet interface on the host to use the newly created DC as its DNS server
 $index = (Get-NetAdapter | Where-Object Name -Match $labName).ifIndex
-Set-DnsClientServerAddress -InterfaceIndex $index -ServerAddresses $machineAddressDC
+Set-DnsClientServerAddress -InterfaceIndex $index -ServerAddresses $domainControllerAddress 
 Write-Host "Host vEthernet interface configured..."
 Get-NetIPConfiguration -InterfaceIndex $index
 
@@ -114,10 +114,12 @@ Invoke-LabCommand -ComputerName $domainControllerName -ScriptBlock {
 }
 
 # Set up temporary local user
+$shareUser = "printerUser" 
+
 New-LocalUser `
-    -Name "gpoAdmin" `
+    -Name $shareUser `
     -AccountExpires (get-date).AddHours(1) `
-    -Password (ConvertTo-SecureString "gpoPass01" -AsPlaintext -Force) `
+    -Password (ConvertTo-SecureString "printerPass01" -AsPlaintext -Force) `
     -ErrorAction 'silentlycontinue'
 
 # Set up a SMB share on the host
@@ -139,7 +141,7 @@ New-SMBShare `
     -Name $shareName `
     -Path $sharePath
 
-Unblock-SmbShareAccess `
-    -Name Temp `
-    -AccountName "gpoAdmin" `
-    -Force
+$shareACL = Get-Acl $sharePath
+$ace = New-Object System.Security.AccessControl.FileSystemAccessRule($shareUser, "Write", "ContainerInherit", "None", "Allow")
+$shareACL.AddAccessRule($ace)
+Set-Acl -AclObject $shareACL -Path $sharePath

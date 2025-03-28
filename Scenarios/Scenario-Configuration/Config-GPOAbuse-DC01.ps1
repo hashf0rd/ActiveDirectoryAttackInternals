@@ -7,7 +7,7 @@ After accessing John's account, initial recon shows John is part of the Office A
 
 The Office Admins group has write access over the SetWallpaper GPO linked to the EnterpriseComputers OU
 
-The attacker modifies the GPO to mount an attacker controlled share, and to add a scheduled task that dumps LSA secrets to this share
+The attacker modifies the GPO to mount an attacker controlled share via an immediate task, and to add a scheduled task that dumps LSA secrets to this share
 
 Cracking the passwords from these hives gives the attacker access to the Jim Duggan account
 
@@ -49,7 +49,7 @@ Add-ADGroupMember -Identity "Group Policy Creator Owners" -Members "Site Policy 
 New-ADOrganizationalUnit -Name "EnterpriseWorkstations" -Path "DC=gpoabuse,DC=lab" -PassThru
 
 # Move WS01 to workstation OU
-Get-ADComputer -Identity "WS01" | Move-ADObject -TargetPath "OU=EnterpriseWorkstations,DC=gpoabuse,DC=lab"
+Get-ADComputer -Identity "AdminWS01" | Move-ADObject -TargetPath "OU=EnterpriseWorkstations,DC=gpoabuse,DC=lab"
 
 # adapted from https://raw.githubusercontent.com/Orange-Cyberdefense/GOAD/refs/heads/main/ad/GOAD/scripts/gpo_abuse.ps1
 $gpo_exist = Get-GPO -Name "Set Wallpaper" -erroraction ignore

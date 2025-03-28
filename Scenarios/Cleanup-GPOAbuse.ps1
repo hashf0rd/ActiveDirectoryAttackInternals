@@ -1,5 +1,7 @@
+Remove-Lab
+
 Remove-LocalUser `
-    -Name "gpoAdmin" `
+    -Name "printerUser" `
     
 Remove-Item `
     -Path "C:\tmpPrinter" `
@@ -9,5 +11,3 @@ Remove-SmbShare `
     -Name TmpPrinter `
     -Force `
     -ErrorAction 'silentlycontinue'
-
-Remove-Lab
