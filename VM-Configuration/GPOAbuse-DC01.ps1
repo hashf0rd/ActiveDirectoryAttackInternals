@@ -21,6 +21,15 @@ Using this the attacker adds themselves to the restricted groups for the DC as a
 
 #>
 
+# Global variables
+$labName = 'GPOAbuse'
+$domainName = 'gpoabuse.lab' 
+$admin = 'gpoAdmin'
+$adminPass = 'gpoPass01'
+$domainControllerName = 'DC01'
+$domainControllerAddress = '192.168.6.10'
+$workstationName = 'AdminWS01'
+$workstationAddress = '192.168.6.88'
 $domainName = "gpoabuse.lab"
 
 # Add users
@@ -65,5 +74,34 @@ if ($gpo_exist) {
     Set-GPPermissions -Name "SetWallapper" -PermissionLevel GpoEdit -TargetName "Office Admins" -TargetType "Group"
 }
 
-# Weird SMB bug requires this for my localization, opsec fail but whatever
-Copy-Item C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\SmbShare\en-US C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\SmbShare\en-GB
+    # Move DC to Dunwhich site
+    $DC = Get-ADDomainController -Discover
+    New-ADReplicationSite -Name "Dunwhich" -Server $DC
+    $site = Get-ADReplicationSite -Filter 'Name -eq "Dunwhich"' 
+    Get-ADDomainController -Filter 'Name -like "DC01*"' | Move-ADDirectoryServer -Site $site -Server $DC
+
+    # Site Policy Admins can write tp/read from the gpLink property of the Dunwhich site
+    $siteDN = "AD:\$((Get-ADReplicationSite -Identity "Dunwhich").DistinguishedName)"
+    $siteACL = Get-ACL -Path $siteDN
+    $groupSID = (Get-ADGroup -Identity 'Site Policy Admins').SID
+
+    # Write
+    $writeACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $groupSID,
+        [System.DirectoryServices.ActiveDirectoryRights]::WriteProperty,
+        [System.Security.AccessControl.AccessControlType]::Allow,
+        [GUID]'f30e3bbe-9ff0-11d1-b603-0000f80367c1' # gpLink
+        )
+    $siteACL.AddAccessRule($writeACE)
+
+    # Read
+    $readACE = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $groupSID,
+        [System.DirectoryServices.ActiveDirectoryRights]::ReadProperty,
+        [System.Security.AccessControl.AccessControlType]::Allow,
+        [GUID]'f30e3bbe-9ff0-11d1-b603-0000f80367c1' # gpLink
+        )
+    $siteACL.AddAccessRule($readACE)
+    
+    Set-Acl -AclObject $siteACL -Path $siteDN
+}

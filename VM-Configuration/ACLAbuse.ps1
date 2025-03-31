@@ -21,25 +21,57 @@ As a final step, the attacker creates a backdoor account that is invisible to th
 
 #>
 
+# Global variables
+$labName = 'ACLAbuse'
 $domainName = 'aclabuse.lab'
+$admin = 'aclAdmin'
+$adminPass = 'aclPass01'
+
+Install-ADDSForest `
+    -CreateDnsDelegation:$false `
+    -DatabasePath "C:\Windows\NTDS" `
+    -DomainMode "Win2012R2" `
+    -DomainName $domainName `
+    -DomainNetbiosName $labName `
+    -ForestMode "Win2012R2" `
+    -InstallDns:$true `
+    -LogPath "C:\Windows\NTDS" `
+    -NoRebootOnCompletion:$false `
+    -SysvolPath "C:\Windows\SYSVOL" `
+    -Force:$true
+
+# Domain Admin
+New-ADUser `
+    -Name $admin `
+    -SamAccountName $admin `
+    -UserPrincipalName $admin + '@' + $domainName `
+    -AccountPassword (ConvertTo-SecureString $adminPass -AsPlainText -Force) `
+    -Enabled $True `
+    -ChangePasswordAtLogon $False
+
+##Add to Domain Admins
+Add-ADGroupMember -Identity 'Domain Admins' -Members $admin
 
 New-ADOrganizationalUnit -Name "EnterpriseUsers" -Path "DC=aclabuse,DC=lab"
 New-ADOrganizationalUnit -Name "SecurityUsers" -Path "DC=aclabuse,DC=lab"
-
 
 New-ADUser -Name 'John Dee' `
     -GivenName 'John' -Surname 'Dee' `
     -SamAccountName 'john.dee' `
     -UserPrincipalName ('John.Dee@' + $domainName) `
     -AccountPassword (ConvertTo-SecureString 'johnsPass01' -AsPlainText -Force) `
-    -Path "OU=EnterpriseUsers,DC=aclabuse,DC=lab" -PassThru | Enable-ADAccount
+    -Path "OU=EnterpriseUsers,DC=aclabuse,DC=lab" `
+    -Enabled $True `
+    -ChangePasswordAtLogon $False
 
 New-ADUser -Name 'Jane Doe' `
     -GivenName 'Jane' -Surname 'Doe' `
     -SamAccountName 'jane.doe' `
     -UserPrincipalName ('Jane.Doe@' + $domainName) `
     -AccountPassword (ConvertTo-SecureString 'janesPass01' -AsPlainText -Force) `
-    -Path "OU=SecurityUsers,DC=aclabuse,DC=lab" -PassThru | Enable-ADAccount
+    -Path "OU=SecurityUsers,DC=aclabuse,DC=lab" `
+    -Enabled $True `
+    -ChangePasswordAtLogon $False
 
 foreach ($group in  @('Office Admins','IT Admins','DevOps Admins')) {
     New-ADGroup -Name $group -GroupScope Global -Path 'OU=EnterpriseUsers,DC=aclabuse,DC=lab'
